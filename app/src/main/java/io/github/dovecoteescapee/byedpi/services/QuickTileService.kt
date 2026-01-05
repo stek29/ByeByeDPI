@@ -9,6 +9,12 @@ import androidx.annotation.RequiresApi
 import io.github.dovecoteescapee.byedpi.data.*
 import io.github.dovecoteescapee.byedpi.utility.getPreferences
 import io.github.dovecoteescapee.byedpi.utility.mode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.N)
 class QuickTileService : TileService() {
@@ -18,6 +24,8 @@ class QuickTileService : TileService() {
     }
 
     private var appTile: Tile? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var statusJob: Job? = null
 
     override fun onTileAdded() {
         super.onTileAdded()
@@ -33,10 +41,18 @@ class QuickTileService : TileService() {
         super.onStartListening()
         appTile = qsTile
         updateStatus()
+        statusJob?.cancel()
+        statusJob = serviceScope.launch {
+            appStatusFlow.collect {
+                updateStatus()
+            }
+        }
     }
 
     override fun onStopListening() {
         super.onStopListening()
+        statusJob?.cancel()
+        statusJob = null
         appTile = null
     }
 
@@ -83,5 +99,10 @@ class QuickTileService : TileService() {
             state = newState
             updateTile()
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
     }
 }
